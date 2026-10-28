@@ -36,7 +36,23 @@ typedef NS_ENUM(NSInteger, PSState) {
 	BOOL noiseCancel;
 	BOOL louReedMode;
 	BOOL concertHall;
+	NSString * roomSize;
+	NSInteger angle;
+	BOOL equalizer;
+	NSInteger equalizerPreset;
+	BOOL headDetection;
+	NSInteger autoPowerOff;
+	NSMutableSet * supportedPaths; // GET paths the connected headset answered without error
 	CFAbsoluteTime showUntilDate;
+}
+
+// Values accepted by the Zik 1 (firmware 1.10), found with the ProbeAPI diagnostics
+static NSArray * equalizerPresetNames(void) {
+	// Preset 6 is the curve set by the user in the official app
+	return @[@"Vocal", @"Pop", @"Club", @"Punchy", @"Deep", @"Crystal", @"Custom"];
+}
+static NSDictionary * roomSizeNames(void) {
+	return @{@"silent":@"Silent room", @"living":@"Living room", @"jazz":@"Jazz club", @"concert":@"Concert hall"};
 }
 
 + (void) initialize {
@@ -206,10 +222,12 @@ typedef NS_ENUM(NSInteger, PSState) {
 		
 		[menu addItem:[NSMenuItem separatorItem]];
 		[[menu addItemWithTitle:NSLocalizedString(@"Noise cancellation", @"") action:@selector(toggleNoiseCancellation:) keyEquivalent:@""] setState:noiseCancel?NSControlStateValueOn:NSControlStateValueOff];
-		[[menu addItemWithTitle:NSLocalizedString(@"Noise cancellation on calls", @"") action:@selector(toggleAncPhoneMode:) keyEquivalent:@""] setState:ancPhoneMode?NSControlStateValueOn:NSControlStateValueOff];
+		if([supportedPaths containsObject:@"/api/system/anc_phone_mode/enabled/get"])
+			[[menu addItemWithTitle:NSLocalizedString(@"Noise cancellation on calls", @"") action:@selector(toggleAncPhoneMode:) keyEquivalent:@""] setState:ancPhoneMode?NSControlStateValueOn:NSControlStateValueOff];
 		[[menu addItemWithTitle:NSLocalizedString(@"Auto connection", @"") action:@selector(toggleAutoConnect:) keyEquivalent:@""] setState:autoConnection?NSControlStateValueOn:NSControlStateValueOff];
 		[[menu addItemWithTitle:NSLocalizedString(@"Lou Reed mode", @"") action:@selector(toggleLouReed:) keyEquivalent:@""] setState:louReedMode?NSControlStateValueOn:NSControlStateValueOff];
 		[[menu addItemWithTitle:NSLocalizedString(@"Concert hall mode", @"") action:@selector(toggleConcertHall:) keyEquivalent:@""] setState:concertHall?NSControlStateValueOn:NSControlStateValueOff];
+		[self addSettingsMenusTo:menu];
 	}
 	else {
 		NSMenuItem * notConnected = [menu addItemWithTitle:NSLocalizedString(@"Not connected",@"") action:NULL keyEquivalent:@""];
@@ -233,6 +251,52 @@ typedef NS_ENUM(NSInteger, PSState) {
 
 	[menu addItem:[NSMenuItem separatorItem]];
 	[menu addItemWithTitle:NSLocalizedString(@"Quit", @"") action:@selector(terminate:) keyEquivalent:@""];
+}
+
+- (void) addSettingsMenusTo:(NSMenu *)menu {
+	if([supportedPaths containsObject:@"/api/audio/sound_effect/get"]) {
+		NSMenu * concertHallMenu = [[NSMenu alloc] initWithTitle:@""];
+		[concertHallMenu addItemWithTitle:NSLocalizedString(@"Room", @"") action:NULL keyEquivalent:@""];
+		for (NSString * room in @[@"silent", @"living", @"jazz", @"concert"]) {
+			NSMenuItem * item = [concertHallMenu addItemWithTitle:NSLocalizedString(roomSizeNames()[room], @"") action:@selector(setRoomSize:) keyEquivalent:@""];
+			item.representedObject = room;
+			item.indentationLevel = 1;
+			item.state = [room isEqualToString:roomSize]?NSControlStateValueOn:NSControlStateValueOff;
+		}
+		[concertHallMenu addItem:[NSMenuItem separatorItem]];
+		[concertHallMenu addItemWithTitle:NSLocalizedString(@"Speaker angle", @"") action:NULL keyEquivalent:@""];
+		for (NSInteger value = 30; value <= 180; value += 30) {
+			NSMenuItem * item = [concertHallMenu addItemWithTitle:[NSString stringWithFormat:@"%li°", (long)value] action:@selector(setAngle:) keyEquivalent:@""];
+			item.tag = value;
+			item.indentationLevel = 1;
+			item.state = value == angle?NSControlStateValueOn:NSControlStateValueOff;
+		}
+		[menu addItemWithTitle:NSLocalizedString(@"Concert hall settings", @"") action:NULL keyEquivalent:@""].submenu = concertHallMenu;
+	}
+	if([supportedPaths containsObject:@"/api/audio/equalizer/enabled/get"]) {
+		NSMenu * equalizerMenu = [[NSMenu alloc] initWithTitle:@""];
+		[[equalizerMenu addItemWithTitle:NSLocalizedString(@"On", @"") action:@selector(toggleEqualizer:) keyEquivalent:@""] setState:equalizer?NSControlStateValueOn:NSControlStateValueOff];
+		[equalizerMenu addItem:[NSMenuItem separatorItem]];
+		[equalizerPresetNames() enumerateObjectsUsingBlock:^(NSString * presetName, NSUInteger index, BOOL * stop) {
+			NSMenuItem * item = [equalizerMenu addItemWithTitle:NSLocalizedString(presetName, @"") action:@selector(setEqualizerPreset:) keyEquivalent:@""];
+			item.tag = index;
+			item.state = (self->equalizer && (NSInteger)index == self->equalizerPreset)?NSControlStateValueOn:NSControlStateValueOff;
+		}];
+		NSString * title = equalizer && equalizerPreset < (NSInteger)equalizerPresetNames().count ? [NSString stringWithFormat:NSLocalizedString(@"Equalizer: %@", @""), NSLocalizedString(equalizerPresetNames()[equalizerPreset], @"")] : NSLocalizedString(@"Equalizer: Off", @"");
+		[menu addItemWithTitle:title action:NULL keyEquivalent:@""].submenu = equalizerMenu;
+	}
+	if([supportedPaths containsObject:@"/api/system/head_detection/enabled/get"])
+		[[menu addItemWithTitle:NSLocalizedString(@"Pause when removed", @"") action:@selector(toggleHeadDetection:) keyEquivalent:@""] setState:headDetection?NSControlStateValueOn:NSControlStateValueOff];
+	if([supportedPaths containsObject:@"/api/system/auto_power_off/get"]) {
+		NSMenu * powerOffMenu = [[NSMenu alloc] initWithTitle:@""];
+		for (NSNumber * minutes in @[@0, @5, @10, @15, @30, @60]) {
+			NSString * title = minutes.integerValue == 0 ? NSLocalizedString(@"Never", @"") : [NSString stringWithFormat:NSLocalizedString(@"After %@ minutes", @""), minutes];
+			NSMenuItem * item = [powerOffMenu addItemWithTitle:title action:@selector(setAutoPowerOff:) keyEquivalent:@""];
+			item.tag = minutes.integerValue;
+			item.state = minutes.integerValue == autoPowerOff?NSControlStateValueOn:NSControlStateValueOff;
+		}
+		[menu addItemWithTitle:NSLocalizedString(@"Auto power off", @"") action:NULL keyEquivalent:@""].submenu = powerOffMenu;
+	}
 }
 
 #pragma mark -
@@ -296,6 +360,7 @@ static NSArray * uuidServicesZik2 = nil;
            || [service matchesUUIDArray:uuidServicesZik2]) {
 			NSLog(@"Disconnected from %@", device.nameOrAddress);
 			state = PSAskingStateInit;
+			[supportedPaths removeAllObjects];
 			[self updateStatusItem];
 		}
 	}
@@ -319,6 +384,11 @@ static NSArray * uuidServicesZik2 = nil;
 
 - (void) handleAnswer:(NSXMLDocument*) xmlDocument {
 	NSString * path = [[[xmlDocument rootElement] attributeForName:@"path"] stringValue];
+	if(path && ![[[[xmlDocument rootElement] attributeForName:@"error"] stringValue] isEqualToString:@"true"]) {
+		if(!supportedPaths)
+			supportedPaths = [NSMutableSet set];
+		[supportedPaths addObject:path];
+	}
 //	NSLog(@"answer for path:%@ : %@",path,xmlDocument);
 	if([path isEqualToString:@"/api/software/version/get"]) {
 		version = [[[[xmlDocument nodesForXPath:@"//software" error:NULL] lastObject] attributeForName:@"version"] stringValue];
@@ -392,6 +462,30 @@ static NSArray * uuidServicesZik2 = nil;
 	else if([path isEqualToString:@"/api/system/anc_phone_mode/enabled/get"]) {
 		ancPhoneMode = [[[[[xmlDocument nodesForXPath:@"//anc_phone_mode" error:NULL] lastObject] attributeForName:@"enabled"] stringValue] isEqualToString:@"true"];
 	}
+	else if([path isEqualToString:@"/api/audio/sound_effect/get"] || [path isEqualToString:@"/api/audio/sound_effect/room_size/get"] || [path isEqualToString:@"/api/audio/sound_effect/angle/get"]) {
+		NSXMLElement * soundEffect = [[xmlDocument nodesForXPath:@"//sound_effect" error:NULL] lastObject];
+		if([soundEffect attributeForName:@"room_size"])
+			roomSize = [[soundEffect attributeForName:@"room_size"] stringValue];
+		if([soundEffect attributeForName:@"angle"])
+			angle = [[[soundEffect attributeForName:@"angle"] stringValue] integerValue];
+		if([soundEffect attributeForName:@"enabled"])
+			concertHall = [[[soundEffect attributeForName:@"enabled"] stringValue] isEqualToString:@"true"];
+	}
+	else if([path isEqualToString:@"/api/audio/equalizer/enabled/get"]) {
+		equalizer = [[[[[xmlDocument nodesForXPath:@"//equalizer" error:NULL] lastObject] attributeForName:@"enabled"] stringValue] isEqualToString:@"true"];
+	}
+	else if([path isEqualToString:@"/api/audio/equalizer/preset_id/get"]) {
+		equalizerPreset = [[[[[xmlDocument nodesForXPath:@"//equalizer" error:NULL] lastObject] attributeForName:@"preset_id"] stringValue] integerValue];
+	}
+	else if([path isEqualToString:@"/api/system/head_detection/enabled/get"]) {
+		headDetection = [[[[[xmlDocument nodesForXPath:@"//head_detection" error:NULL] lastObject] attributeForName:@"enabled"] stringValue] isEqualToString:@"true"];
+	}
+	else if([path isEqualToString:@"/api/system/auto_power_off/get"]) {
+		autoPowerOff = [[[[[xmlDocument nodesForXPath:@"//auto_power_off" error:NULL] lastObject] attributeForName:@"value"] stringValue] integerValue];
+	}
+	else if([path hasSuffix:@"/set"]) {
+		// Acknowledgement of a SET request: the GET sent right after it updates the state
+	}
 	else if([[NSUserDefaults standardUserDefaults] boolForKey:@"ProbeAPI"]) {
 		// Already logged in full by rfcommChannelData:
 	}
@@ -402,10 +496,29 @@ static NSArray * uuidServicesZik2 = nil;
 	[statusItem.menu update];
 }
 
+// A packet can hold several messages (for example two answers sent back to back).
+// Each message starts with its total length as a big-endian UInt16.
 - (void)rfcommChannelData:(IOBluetoothRFCOMMChannel*)rfcommChannel data:(void *)dataPointer length:(size_t)dataLength {
 	NSData * data = [NSData dataWithBytes:dataPointer length:dataLength];
-	UInt16 messageLen = 0;
-	[data getBytes:&messageLen range:NSMakeRange(0, 2)];
+	if([[NSUserDefaults standardUserDefaults] boolForKey:@"ProbeAPI"])
+		[self probeLog:[NSString stringWithFormat:@"packet: %lu bytes, starts with %@", (unsigned long)data.length, [data subdataWithRange:NSMakeRange(0, MIN(data.length, 8))]]];
+	const unsigned char * bytes = data.bytes;
+	NSUInteger offset = 0;
+	while(data.length - offset >= 3) {
+		NSUInteger messageLen = (bytes[offset] << 8) | bytes[offset+1];
+		if(messageLen < 3 || messageLen > data.length - offset) {
+			// Not the expected framing: handle the rest as a single message, as before
+			[self handleMessage:[data subdataWithRange:NSMakeRange(offset, data.length - offset)]];
+			return;
+		}
+		[self handleMessage:[data subdataWithRange:NSMakeRange(offset, messageLen)]];
+		offset += messageLen;
+	}
+	if(offset < data.length)
+		[self handleMessage:[data subdataWithRange:NSMakeRange(offset, data.length - offset)]];
+}
+
+- (void) handleMessage:(NSData *)data {
 	unsigned char magic = 0;
 	[data getBytes:&magic range:NSMakeRange(2, 1)];
 	switch (magic) {
@@ -416,7 +529,7 @@ static NSArray * uuidServicesZik2 = nil;
 				xmlData = [data subdataWithRange:NSMakeRange(7, [data length]-7)];
 			NSXMLDocument * xmlDocument = [[NSXMLDocument alloc] initWithData:xmlData options:0 error:NULL];
 			if([[NSUserDefaults standardUserDefaults] boolForKey:@"ProbeAPI"])
-				NSLog(@"PROBE answer: %@", xmlData ? [[NSString alloc] initWithData:xmlData encoding:NSUTF8StringEncoding] : data);
+				[self probeLog:[NSString stringWithFormat:@"answer: %@", xmlData ? [[NSString alloc] initWithData:xmlData encoding:NSUTF8StringEncoding] : data]];
 			NSString * rootName = [[xmlDocument rootElement] name];
 			if([rootName isEqualToString:@"answer"]) {
 				[self handleAnswer:xmlDocument];
@@ -444,6 +557,11 @@ static NSArray * uuidServicesZik2 = nil;
 				[self sendRequest:@"GET /api/audio/specific_mode/enabled/get"];
 				[self sendRequest:@"GET /api/audio/sound_effect/enabled/get"];
 				[self sendRequest:@"GET /api/system/anc_phone_mode/enabled/get"];
+				[self sendRequest:@"GET /api/audio/sound_effect/get"];
+				[self sendRequest:@"GET /api/audio/equalizer/enabled/get"];
+				[self sendRequest:@"GET /api/audio/equalizer/preset_id/get"];
+				[self sendRequest:@"GET /api/system/head_detection/enabled/get"];
+				[self sendRequest:@"GET /api/system/auto_power_off/get"];
 				if([[NSUserDefaults standardUserDefaults] boolForKey:@"ProbeAPI"])
 					[self probeAPI];
 			}
@@ -451,10 +569,21 @@ static NSArray * uuidServicesZik2 = nil;
 	}
 }
 
-// Diagnostics: launch with `open -a "Parrot Status" --args -ProbeAPI YES` and read the answers with
-// `log show --last 5m --predicate 'process == "Parrot Status"' | grep PROBE`.
+// Diagnostics: launch with `open -a "Parrot Status" --args -ProbeAPI YES` and read the answers in
+// ~/Library/Logs/Parrot Status/probe.log (the unified log hides them as <private>).
 // Asks the headset for API paths known from the Zik 2 and the official app, to find out which ones the connected model supports.
 - (void) probeAPI {
+	// Requests can also be given at launch: --args -ProbeAPI YES -ProbeRequests '("GET /api/…", "SET /api/…?arg=…")'
+	NSArray * requests = [[NSUserDefaults standardUserDefaults] arrayForKey:@"ProbeRequests"];
+	if(requests.count) {
+		[requests enumerateObjectsUsingBlock:^(NSString * request, NSUInteger index, BOOL * stop) {
+			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((index + 1) * 0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+				[self probeLog:[NSString stringWithFormat:@"request: %@", request]];
+				[self sendRequest:request];
+			});
+		}];
+		return;
+	}
 	NSArray * paths = @[
 		@"/api/audio/equalizer/enabled/get",
 		@"/api/audio/equalizer/preset_id/get",
@@ -479,10 +608,22 @@ static NSArray * uuidServicesZik2 = nil;
 	[paths enumerateObjectsUsingBlock:^(NSString * path, NSUInteger index, BOOL * stop) {
 		// One request every half second so the answers do not arrive in the same packet
 		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((index + 1) * 0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-			NSLog(@"PROBE request: GET %@", path);
+			[self probeLog:[NSString stringWithFormat:@"request: GET %@", path]];
 			[self sendRequest:[NSString stringWithFormat:@"GET %@", path]];
 		});
 	}];
+}
+
+- (void) probeLog:(NSString *)message {
+	NSURL * logsURL = [[[NSFileManager defaultManager] URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask].firstObject URLByAppendingPathComponent:@"Logs/Parrot Status" isDirectory:YES];
+	[[NSFileManager defaultManager] createDirectoryAtURL:logsURL withIntermediateDirectories:YES attributes:nil error:NULL];
+	NSURL * fileURL = [logsURL URLByAppendingPathComponent:@"probe.log"];
+	if(![[NSFileManager defaultManager] fileExistsAtPath:fileURL.path])
+		[[NSData data] writeToURL:fileURL atomically:YES];
+	NSFileHandle * fileHandle = [NSFileHandle fileHandleForWritingToURL:fileURL error:NULL];
+	[fileHandle seekToEndOfFile];
+	[fileHandle writeData:[[NSString stringWithFormat:@"%@ %@\n", [NSDate date], message] dataUsingEncoding:NSUTF8StringEncoding]];
+	[fileHandle closeFile];
 }
 
 //- (void)rfcommChannelOpenComplete:(IOBluetoothRFCOMMChannel*)rfcommChannel status:(IOReturn)error {
@@ -557,6 +698,40 @@ static NSArray * uuidServicesZik2 = nil;
 - (IBAction)toggleAncPhoneMode:(id)sender {
 	[self sendRequest:[NSString stringWithFormat:@"SET /api/system/anc_phone_mode/enabled/set?arg=%@",ancPhoneMode?@"false":@"true"]];
 	[self sendRequest:@"GET /api/system/anc_phone_mode/enabled/get"];
+}
+
+- (IBAction)setRoomSize:(NSMenuItem *)sender {
+	[self sendRequest:[NSString stringWithFormat:@"SET /api/audio/sound_effect/room_size/set?arg=%@", sender.representedObject]];
+	[self sendRequest:@"GET /api/audio/sound_effect/room_size/get"];
+}
+
+- (IBAction)setAngle:(NSMenuItem *)sender {
+	[self sendRequest:[NSString stringWithFormat:@"SET /api/audio/sound_effect/angle/set?arg=%li", (long)sender.tag]];
+	[self sendRequest:@"GET /api/audio/sound_effect/angle/get"];
+}
+
+- (IBAction)toggleEqualizer:(id)sender {
+	[self sendRequest:[NSString stringWithFormat:@"SET /api/audio/equalizer/enabled/set?arg=%@",equalizer?@"false":@"true"]];
+	[self sendRequest:@"GET /api/audio/equalizer/enabled/get"];
+}
+
+- (IBAction)setEqualizerPreset:(NSMenuItem *)sender {
+	if(!equalizer) {
+		[self sendRequest:@"SET /api/audio/equalizer/enabled/set?arg=true"];
+		[self sendRequest:@"GET /api/audio/equalizer/enabled/get"];
+	}
+	[self sendRequest:[NSString stringWithFormat:@"SET /api/audio/equalizer/preset_id/set?arg=%li", (long)sender.tag]];
+	[self sendRequest:@"GET /api/audio/equalizer/preset_id/get"];
+}
+
+- (IBAction)toggleHeadDetection:(id)sender {
+	[self sendRequest:[NSString stringWithFormat:@"SET /api/system/head_detection/enabled/set?arg=%@",headDetection?@"false":@"true"]];
+	[self sendRequest:@"GET /api/system/head_detection/enabled/get"];
+}
+
+- (IBAction)setAutoPowerOff:(NSMenuItem *)sender {
+	[self sendRequest:[NSString stringWithFormat:@"SET /api/system/auto_power_off/set?arg=%li", (long)sender.tag]];
+	[self sendRequest:@"GET /api/system/auto_power_off/get"];
 }
 
 - (IBAction)toggleAutoConnect:(id)sender {
