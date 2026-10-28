@@ -206,6 +206,7 @@ typedef NS_ENUM(NSInteger, PSState) {
 		
 		[menu addItem:[NSMenuItem separatorItem]];
 		[[menu addItemWithTitle:NSLocalizedString(@"Noise cancellation", @"") action:@selector(toggleNoiseCancellation:) keyEquivalent:@""] setState:noiseCancel?NSControlStateValueOn:NSControlStateValueOff];
+		[[menu addItemWithTitle:NSLocalizedString(@"Noise cancellation on calls", @"") action:@selector(toggleAncPhoneMode:) keyEquivalent:@""] setState:ancPhoneMode?NSControlStateValueOn:NSControlStateValueOff];
 		[[menu addItemWithTitle:NSLocalizedString(@"Auto connection", @"") action:@selector(toggleAutoConnect:) keyEquivalent:@""] setState:autoConnection?NSControlStateValueOn:NSControlStateValueOff];
 		[[menu addItemWithTitle:NSLocalizedString(@"Lou Reed mode", @"") action:@selector(toggleLouReed:) keyEquivalent:@""] setState:louReedMode?NSControlStateValueOn:NSControlStateValueOff];
 		[[menu addItemWithTitle:NSLocalizedString(@"Concert hall mode", @"") action:@selector(toggleConcertHall:) keyEquivalent:@""] setState:concertHall?NSControlStateValueOn:NSControlStateValueOff];
@@ -388,6 +389,12 @@ static NSArray * uuidServicesZik2 = nil;
 	else if([path isEqualToString:@"/api/audio/sound_effect/enabled/get"]) {
 		concertHall = [[[[[xmlDocument nodesForXPath:@"//sound_effect" error:NULL] lastObject] attributeForName:@"enabled"] stringValue] isEqualToString:@"true"];
 	}
+	else if([path isEqualToString:@"/api/system/anc_phone_mode/enabled/get"]) {
+		ancPhoneMode = [[[[[xmlDocument nodesForXPath:@"//anc_phone_mode" error:NULL] lastObject] attributeForName:@"enabled"] stringValue] isEqualToString:@"true"];
+	}
+	else if([[NSUserDefaults standardUserDefaults] boolForKey:@"ProbeAPI"]) {
+		// Already logged in full by rfcommChannelData:
+	}
 	else {
 		NSLog(@"Unknown answer : %@ %@ ",path,xmlDocument);
 	}
@@ -408,6 +415,8 @@ static NSArray * uuidServicesZik2 = nil;
 			if(data.length > 7)
 				xmlData = [data subdataWithRange:NSMakeRange(7, [data length]-7)];
 			NSXMLDocument * xmlDocument = [[NSXMLDocument alloc] initWithData:xmlData options:0 error:NULL];
+			if([[NSUserDefaults standardUserDefaults] boolForKey:@"ProbeAPI"])
+				NSLog(@"PROBE answer: %@", xmlData ? [[NSString alloc] initWithData:xmlData encoding:NSUTF8StringEncoding] : data);
 			NSString * rootName = [[xmlDocument rootElement] name];
 			if([rootName isEqualToString:@"answer"]) {
 				[self handleAnswer:xmlDocument];
@@ -434,9 +443,46 @@ static NSArray * uuidServicesZik2 = nil;
 				[self sendRequest:@"GET /api/system/auto_connection/enabled/get"];
 				[self sendRequest:@"GET /api/audio/specific_mode/enabled/get"];
 				[self sendRequest:@"GET /api/audio/sound_effect/enabled/get"];
+				[self sendRequest:@"GET /api/system/anc_phone_mode/enabled/get"];
+				if([[NSUserDefaults standardUserDefaults] boolForKey:@"ProbeAPI"])
+					[self probeAPI];
 			}
 			break;
 	}
+}
+
+// Diagnostics: launch with `open -a "Parrot Status" --args -ProbeAPI YES` and read the answers with
+// `log show --last 5m --predicate 'process == "Parrot Status"' | grep PROBE`.
+// Asks the headset for API paths known from the Zik 2 and the official app, to find out which ones the connected model supports.
+- (void) probeAPI {
+	NSArray * paths = @[
+		@"/api/audio/equalizer/enabled/get",
+		@"/api/audio/equalizer/preset_id/get",
+		@"/api/audio/equalizer/preset_value/get",
+		@"/api/audio/preset/current/get",
+		@"/api/audio/sound_effect/get",
+		@"/api/audio/sound_effect/room_size/get",
+		@"/api/audio/sound_effect/angle/get",
+		@"/api/audio/noise_control/get",
+		@"/api/audio/noise_control/enabled/get",
+		@"/api/audio/track/metadata/get",
+		@"/api/audio/source/get",
+		@"/api/system/head_detection/enabled/get",
+		@"/api/system/auto_power_off/get",
+		@"/api/system/device_type/get",
+		@"/api/system/color/get",
+		@"/api/system/pi/get",
+		@"/api/system/bt_address/get",
+		@"/api/system/flight_mode/get",
+		@"/api/software/download_state/get",
+	];
+	[paths enumerateObjectsUsingBlock:^(NSString * path, NSUInteger index, BOOL * stop) {
+		// One request every half second so the answers do not arrive in the same packet
+		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((index + 1) * 0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+			NSLog(@"PROBE request: GET %@", path);
+			[self sendRequest:[NSString stringWithFormat:@"GET %@", path]];
+		});
+	}];
 }
 
 //- (void)rfcommChannelOpenComplete:(IOBluetoothRFCOMMChannel*)rfcommChannel status:(IOReturn)error {
@@ -506,6 +552,11 @@ static NSArray * uuidServicesZik2 = nil;
 - (IBAction)toggleNoiseCancellation:(id)sender {
 	[self sendRequest:[NSString stringWithFormat:@"SET /api/audio/noise_cancellation/enabled/set?arg=%@",noiseCancel?@"false":@"true"]];
 	[self sendRequest:@"GET /api/audio/noise_cancellation/enabled/get"];
+}
+
+- (IBAction)toggleAncPhoneMode:(id)sender {
+	[self sendRequest:[NSString stringWithFormat:@"SET /api/system/anc_phone_mode/enabled/set?arg=%@",ancPhoneMode?@"false":@"true"]];
+	[self sendRequest:@"GET /api/system/anc_phone_mode/enabled/get"];
 }
 
 - (IBAction)toggleAutoConnect:(id)sender {
