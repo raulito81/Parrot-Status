@@ -3,6 +3,8 @@ Parrot-Status
 
 Status Item for the Parrot Zik.
 
+Fork of [vincent-le-normand/Parrot-Status](https://github.com/vincent-le-normand/Parrot-Status), updated to run on current macOS (see [CHANGELOG](CHANGELOG.md)).
+
 http://www.parrot.com/zik
 
 Download
@@ -10,7 +12,7 @@ Download
 
 To download the latest version, follow this link.
 
-https://github.com/vincent-le-normand/Parrot-Status/releases/latest
+https://github.com/raulito81/Parrot-Status/releases/latest
 
 Installation
 ============
@@ -35,7 +37,7 @@ License
 =======
 This software is distributed under BSD Licence.
 
-https://raw.githubusercontent.com/vincent-le-normand/Parrot-Status/master/LICENSE
+https://github.com/raulito81/Parrot-Status/blob/main/LICENSE
 
 Parrot and Parrot Zik are registered trademarks.
 

@@ -32,7 +32,7 @@ Si falta el texto o el permiso de Bluetooth, la app no podrá hablar con los cas
 
 ## 3. Revisar el código cambiado
 
-- `git diff master...HEAD -- "Parrot Status"` y los cambios sin commit.
+- `git diff main...HEAD -- "Parrot Status"` y los cambios sin commit.
 - Que no vuelvan a aparecer `NSAssert` en el camino del Bluetooth (cierran la app en Debug): los errores se registran con `NSLog`.
 - Si se añade una opción al menú que se guarda, que tenga su valor por defecto en `registerDefaults` (`+initialize`).
 

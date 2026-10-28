@@ -32,13 +32,13 @@ open "/Applications/Parrot Status.app"
 
 ## Git y versiones
 
-- **Todo cambio va en una rama** (`feat/…`, `fix/…`, `docs/…`), nunca directamente en `master` (la rama principal se llama `master`, no `main`). Antes de mezclar con `master` se revisan README, `CHANGELOG.md` y la versión; **si hay dudas, se pregunta**. Proceso completo: skill `/release`.
-- Identidad personal: `Raul Maroto <raulmaroto@gmail.com>`. La configuración local del repo tiene el correo del trabajo: haz los commits con `git -c user.name="Raul Maroto" -c user.email="raulmaroto@gmail.com" commit …`.
+- **Todo cambio va en una rama** (`feat/…`, `fix/…`, `docs/…`), nunca directamente en `main`. Antes de mezclar con `main` se revisan README, `CHANGELOG.md` y la versión; **si hay dudas, se pregunta**. Proceso completo: skill `/release`.
+- Identidad personal: `Raul Maroto <raulmaroto@gmail.com>`, configurada en el repo (`git config user.email`). Compruébala antes de commitear: la global es la del trabajo.
 - **Versión** en `Parrot Status/Info.plist`: `CFBundleShortVersionString` (X.Y.Z) y `CFBundleVersion` (build, +1 en cada versión, nunca se reinicia). Minor para funcionalidad nueva, patch para correcciones. Las etiquetas siguen el formato del repo, sin `v` (`0.9.6`, `1.0.0`). Cambios solo de documentación interna (`CLAUDE.md`, `.claude/`) no llevan versión.
-- **`origin` es el repo del autor original**: no se puede subir ahí. Para subir hace falta un fork en la cuenta `raulito81` (`git remote rename origin upstream` y `origin` apuntando al fork). Mientras no exista, el trabajo se queda en local.
+- **Remotos:** `origin` es el fork personal (`git@github-personal:raulito81/Parrot-Status.git`); `upstream` es el original de `vincent-le-normand`, abandonado: no se sube nada ahí.
 
 ## Skills
 
 - `/check`: compila en Release sin avisos y comprueba el `.app` (arquitectura, `Info.plist`, firma y permisos).
 - `/build`: compila, instala en `/Applications` y abre la app para probarla con los cascos.
-- `/release`: cerrar una versión y mezclar con `master`.
+- `/release`: cerrar una versión y mezclar con `main`.

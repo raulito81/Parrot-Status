@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cierra una versión de Parrot Status: revisa README, CHANGELOG y versión del Info.plist en la rama de trabajo, pregunta las dudas, comprueba que compila, hace el commit, mezcla con master y pone la etiqueta. Úsala cuando el usuario pida cerrar, sacar o mezclar una versión o una rama.
+description: Cierra una versión de Parrot Status: revisa README, CHANGELOG y versión del Info.plist en la rama de trabajo, pregunta las dudas, comprueba que compila, hace el commit, mezcla con main y pone la etiqueta. Úsala cuando el usuario pida cerrar, sacar o mezclar una versión o una rama.
 argument-hint: "[X.Y.Z]"
 disable-model-invocation: true
 ---
@@ -18,13 +18,14 @@ Argumentos: `$ARGUMENTS` (versión, opcional).
   plutil -extract CFBundleVersion raw "Parrot Status/Info.plist"
   ```
 
-- **Los cambios tienen que estar en una rama**, no en `master`. Si hay cambios sin commit en `master`, crea antes la rama (`feat/…`, `fix/…`, `docs/…`) y llévalos a ella.
-- Remotos: `git remote -v`. Si `origin` es `vincent-le-normand/Parrot-Status` (el original), no hay dónde subir: compara con el `master` local y avisa de que el paso 6 no se podrá hacer. Si ya hay fork (`origin` en `raulito81`), `git fetch origin` y comprueba `git rev-list --left-right --count master...origin/master`; si `master` va por detrás, `git pull --ff-only` en `master`; si ha divergido, para y pregunta.
+- **Los cambios tienen que estar en una rama**, no en `main`. Si hay cambios sin commit en `main`, crea antes la rama (`feat/…`, `fix/…`, `docs/…`) y llévalos a ella.
+- `git fetch origin` y comprueba que `main` está al día con `origin/main` (`git rev-list --left-right --count main...origin/main`). Si `main` va por detrás, `git pull --ff-only` en `main`; si ha divergido, para y pregunta. `origin` es el fork personal; `upstream` (el original) no se toca.
+- `git config user.email` tiene que ser `raulmaroto@gmail.com` (la global es la del trabajo). Si no, `git config user.name "Raul Maroto" && git config user.email raulmaroto@gmail.com`.
 - Si hay cambios sin commit que no son de esta versión, para y pregunta.
 
 ## 2. Qué entra
 
-- `git log --oneline master..HEAD` y los diffs (no solo los mensajes) para describir bien los cambios.
+- `git log --oneline main..HEAD` y los diffs (no solo los mensajes) para describir bien los cambios.
 - **¿Lleva versión?** Sí si cambia la app (código, `MainMenu.xib`, `Info.plist`, permisos, proyecto). No si solo toca documentación interna (`CLAUDE.md`, `.claude/`): en ese caso pasa al paso 5 sin tocar versión ni CHANGELOG.
 - Número: si no viene en los argumentos, propón el siguiente — **minor** para funcionalidad nueva, **patch** para correcciones — y confírmalo. Si la versión ya está puesta en la rama (por ejemplo, la 1.0.0 de `feat/macos-moderno`), confirma que es la que se cierra y no la subas otra vez.
 
@@ -57,15 +58,12 @@ Argumentos: `$ARGUMENTS` (versión, opcional).
 
 Enseña al usuario el resumen de los cambios de versión (diff de `Info.plist`, `CHANGELOG.md` y `README.md`) y espera su visto bueno.
 
-La configuración local del repo tiene el correo del trabajo: todos los commits y el merge van con la identidad personal.
-
 ```bash
-ID=(-c user.name="Raul Maroto" -c user.email="raulmaroto@gmail.com")
 git add -A
-git $ID commit -m "X.Y.Z: resumen corto"         # o "docs: …" si no lleva versión
-git switch master
-git $ID merge --no-ff <rama> -m "Merge branch '<rama>' into master"
-git $ID tag -a X.Y.Z -m "X.Y.Z"                    # solo si lleva versión; sin "v", como las anteriores
+git commit -m "X.Y.Z: resumen corto"         # o "docs: …" si no lleva versión
+git switch main
+git merge --no-ff <rama> -m "Merge branch '<rama>' into main"
+git tag -a X.Y.Z -m "X.Y.Z"                    # solo si lleva versión; sin "v", como las anteriores
 ```
 
 - Los mensajes de commit y merge llevan la línea `Co-Authored-By` que indique el sistema.
@@ -75,6 +73,5 @@ git $ID tag -a X.Y.Z -m "X.Y.Z"                    # solo si lleva versión; sin
 
 ## 6. Subir
 
-- **Sin fork** (`origin` es el original): no subas nada. Termina en `master` y avisa de que el trabajo está solo en local; ofrece crear el fork (el usuario lo crea en GitHub, luego `git remote rename origin upstream` y `git remote add origin git@github-personal:raulito81/Parrot-Status.git`).
-- **Con fork**: pregunta antes de subir y, con su visto bueno, `git push origin master` y `git push origin X.Y.Z`. Comprueba al final que estás en `master` y que `git rev-list --left-right --count master...origin/master` da `0 0`.
+- Pregunta antes de subir y, con su visto bueno, `git push origin main` y `git push origin X.Y.Z`. Comprueba al final que estás en `main` y que `git rev-list --left-right --count main...origin/main` da `0 0`.
 - Si lleva versión, ofrece seguir con `/build zip` para instalarla y generar el zip.
