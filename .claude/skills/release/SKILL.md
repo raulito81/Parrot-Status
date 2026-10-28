@@ -31,7 +31,7 @@ Argumentos: `$ARGUMENTS` (versión, opcional).
 
 ## 3. Ficheros a revisar
 
-1. **`Parrot Status/Info.plist`**: `CFBundleShortVersionString` = `X.Y.Z` y `CFBundleVersion` = build anterior + 1 (nunca se reinicia). Usa `plutil -replace … -string …` para no romper el formato.
+1. **`Parrot Status/Info.plist`**: `CFBundleShortVersionString` = `X.Y.Z` y `CFBundleVersion` = build anterior + 1 (nunca se reinicia). Cámbialos con `sed` sobre la línea del valor: `plutil -replace` reordena todas las claves del fichero y ensucia el diff.
 2. **`CHANGELOG.md`** (en inglés, como el resto del repo): entrada nueva encima de la anterior:
 
    ```markdown

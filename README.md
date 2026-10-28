@@ -33,6 +33,11 @@ The app is signed ad hoc. On first launch macOS asks for Bluetooth and notificat
 
 Hold Option while the menu is open to set the battery notification levels.
 
+Diagnostics
+===========
+
+To see which API paths a headset supports, launch the app with `open -a "Parrot Status" --args -ProbeAPI YES` while the headset is connected. It asks the headset for a list of known paths and saves the answers in `~/Library/Logs/Parrot Status/probe.log`. Specific requests can be given with `-ProbeRequests '("GET /api/…", "SET /api/…?arg=…")'`.
+
 License
 =======
 This software is distributed under BSD Licence.
