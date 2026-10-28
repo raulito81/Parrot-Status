@@ -13,13 +13,8 @@
 		BF2F69FE1A013C0000462846 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = BF2F69FC1A013C0000462846 /* MainMenu.xib */; };
 		BF2F6A0A1A013C0000462846 /* Parrot_StatusTests.m in Sources */ = {isa = PBXBuildFile; fileRef = BF2F6A091A013C0000462846 /* Parrot_StatusTests.m */; };
 		BF2F6A181A014F3000462846 /* IOBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BF2F6A171A014F3000462846 /* IOBluetooth.framework */; };
-		BF91F58A1A03AB6C006634CF /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BF91F5891A03AB6C006634CF /* Sparkle.framework */; };
-		BF91F58C1A03AB86006634CF /* Sparkle.framework in Copy Framework */ = {isa = PBXBuildFile; fileRef = BF91F5891A03AB6C006634CF /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		BF91F58E1A03B108006634CF /* dsa_pub.pem in Resources */ = {isa = PBXBuildFile; fileRef = BF91F58D1A03B108006634CF /* dsa_pub.pem */; };
 		BF91F5901A03BBF0006634CF /* Credits.rtf in Resources */ = {isa = PBXBuildFile; fileRef = BF91F58F1A03BBF0006634CF /* Credits.rtf */; };
-		BF91F5931A03C3A4006634CF /* PFMoveApplication.m in Sources */ = {isa = PBXBuildFile; fileRef = BF91F5921A03C3A4006634CF /* PFMoveApplication.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		BFC2266D1A03C4AB0068B8BB /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BFC2266C1A03C4AB0068B8BB /* Security.framework */; };
-		BFE557F81AC95A7A009731A0 /* MediaKey.m in Sources */ = {isa = PBXBuildFile; fileRef = BFE557F71AC95A7A009731A0 /* MediaKey.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -39,7 +34,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				BF91F58C1A03AB86006634CF /* Sparkle.framework in Copy Framework */,
 			);
 			name = "Copy Framework";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -58,15 +52,9 @@
 		BF2F6A081A013C0000462846 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BF2F6A091A013C0000462846 /* Parrot_StatusTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Parrot_StatusTests.m; sourceTree = "<group>"; };
 		BF2F6A171A014F3000462846 /* IOBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOBluetooth.framework; path = System/Library/Frameworks/IOBluetooth.framework; sourceTree = SDKROOT; };
-		BF91F5891A03AB6C006634CF /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle.framework; sourceTree = "<group>"; };
-		BF91F58D1A03B108006634CF /* dsa_pub.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = dsa_pub.pem; sourceTree = "<group>"; };
 		BF91F58F1A03BBF0006634CF /* Credits.rtf */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.rtf; path = Credits.rtf; sourceTree = "<group>"; };
-		BF91F5911A03C3A4006634CF /* PFMoveApplication.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PFMoveApplication.h; path = "lets-move-cocoa/PFMoveApplication.h"; sourceTree = SOURCE_ROOT; };
-		BF91F5921A03C3A4006634CF /* PFMoveApplication.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = PFMoveApplication.m; path = "lets-move-cocoa/PFMoveApplication.m"; sourceTree = SOURCE_ROOT; };
 		BFC2266C1A03C4AB0068B8BB /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		BFC2266E1A03C4E50068B8BB /* Prefix_header.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Prefix_header.pch; sourceTree = "<group>"; };
-		BFE557F61AC95A7A009731A0 /* MediaKey.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MediaKey.h; path = "../../mac-bt-headset-fix/Spotify Bluetooth Headset Listener/MediaKey.h"; sourceTree = "<group>"; };
-		BFE557F71AC95A7A009731A0 /* MediaKey.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MediaKey.m; path = "../../mac-bt-headset-fix/Spotify Bluetooth Headset Listener/MediaKey.m"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,7 +63,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				BFC2266D1A03C4AB0068B8BB /* Security.framework in Frameworks */,
-				BF91F58A1A03AB6C006634CF /* Sparkle.framework in Frameworks */,
 				BF2F6A181A014F3000462846 /* IOBluetooth.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -113,15 +100,10 @@
 			children = (
 				BF2F69F51A013C0000462846 /* AppDelegate.h */,
 				BF2F69F61A013C0000462846 /* AppDelegate.m */,
-				BF91F5911A03C3A4006634CF /* PFMoveApplication.h */,
-				BF91F5921A03C3A4006634CF /* PFMoveApplication.m */,
-				BFE557F61AC95A7A009731A0 /* MediaKey.h */,
-				BFE557F71AC95A7A009731A0 /* MediaKey.m */,
 				BF2F69FA1A013C0000462846 /* Images.xcassets */,
 				BF2F69FC1A013C0000462846 /* MainMenu.xib */,
 				BF2F69F31A013C0000462846 /* Supporting Files */,
 				BFC2266C1A03C4AB0068B8BB /* Security.framework */,
-				BF91F5891A03AB6C006634CF /* Sparkle.framework */,
 				BF2F6A171A014F3000462846 /* IOBluetooth.framework */,
 				BFC2266E1A03C4E50068B8BB /* Prefix_header.pch */,
 			);
@@ -131,7 +113,6 @@
 		BF2F69F31A013C0000462846 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
-				BF91F58D1A03B108006634CF /* dsa_pub.pem */,
 				BF2F69F41A013C0000462846 /* Info.plist */,
 				BF2F69F81A013C0000462846 /* main.m */,
 				BF91F58F1A03BBF0006634CF /* Credits.rtf */,
@@ -238,7 +219,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				BF2F69FB1A013C0000462846 /* Images.xcassets in Resources */,
-				BF91F58E1A03B108006634CF /* dsa_pub.pem in Resources */,
 				BF2F69FE1A013C0000462846 /* MainMenu.xib in Resources */,
 				BF91F5901A03BBF0006634CF /* Credits.rtf in Resources */,
 			);
@@ -260,8 +240,6 @@
 			files = (
 				BF2F69F91A013C0000462846 /* main.m in Sources */,
 				BF2F69F71A013C0000462846 /* AppDelegate.m in Sources */,
-				BFE557F81AC95A7A009731A0 /* MediaKey.m in Sources */,
-				BF91F5931A03C3A4006634CF /* PFMoveApplication.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -329,10 +307,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = macosx10.10;
+				SDKROOT = macosx;
 			};
 			name = Debug;
 		};
@@ -365,9 +343,9 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				SDKROOT = macosx10.10;
+				SDKROOT = macosx;
 			};
 			name = Release;
 		};
@@ -376,9 +354,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/Parrot Status\"";
 				GCC_PREFIX_HEADER = "Parrot Status/Prefix_header.pch";
+				CODE_SIGN_ENTITLEMENTS = "Parrot Status/Parrot Status.entitlements";
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "Parrot Status/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.killerdemouches.Parrot-Status";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -389,9 +369,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/Parrot Status\"";
 				GCC_PREFIX_HEADER = "Parrot Status/Prefix_header.pch";
+				CODE_SIGN_ENTITLEMENTS = "Parrot Status/Parrot Status.entitlements";
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "Parrot Status/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.killerdemouches.Parrot-Status";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};

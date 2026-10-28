@@ -17,6 +17,20 @@ Installation
 
 To install the software, drag it onto your Application Folder. 
 
+Building
+========
+
+Requires macOS 13 Ventura or later and Xcode.
+
+```bash
+xcodebuild -project "Parrot Status.xcodeproj" -scheme "Parrot Status" -configuration Release -derivedDataPath build
+cp -R "build/Build/Products/Release/Parrot Status.app" /Applications/
+```
+
+The app is signed ad hoc. On first launch macOS asks for Bluetooth and notification access; allow both. It adds itself to the login items the first time it runs; turn this off from "Open at login" in its menu.
+
+Hold Option while the menu is open to set the battery notification levels.
+
 License
 =======
 This software is distributed under BSD Licence.
