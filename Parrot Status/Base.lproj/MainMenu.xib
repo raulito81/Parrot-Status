@@ -14,10 +14,8 @@
         <customObject id="Voe-Tx-rLC" customClass="AppDelegate">
             <connections>
                 <outlet property="advancedBatteryWindow" destination="xqS-Cp-Alt" id="Fc9-t9-abm"/>
-                <outlet property="updater" destination="wBC-Gz-srE" id="Eoi-ul-Sza"/>
             </connections>
         </customObject>
-        <customObject id="wBC-Gz-srE" customClass="SUUpdater"/>
         <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
         <menu title="Main Menu" systemMenu="main" id="AYu-sK-qS6">
             <items>

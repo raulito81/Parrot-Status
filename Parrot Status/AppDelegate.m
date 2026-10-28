@@ -8,26 +8,16 @@
 
 #import "AppDelegate.h"
 #import <IOBluetooth/IOBluetooth.h>
-#import <Sparkle/Sparkle.h>
-#import "PFMoveApplication.h"
-#import <Quartz/Quartz.h>
-#import "MediaKey.h"
+#import <ServiceManagement/ServiceManagement.h>
+#import <UserNotifications/UserNotifications.h>
 
 typedef NS_ENUM(NSInteger, PSState) {
 	PSAskingStateInit,
 	PSAskingStateConnected,
 };
 
-@interface AppDelegate ()
+@interface AppDelegate () <UNUserNotificationCenterDelegate>
 @property (weak) IBOutlet NSWindow *advancedBatteryWindow;
-@property (weak) IBOutlet SUUpdater *updater;
-@property id eventMonitor;
-@end
-
-@interface AppDelegate(SharedFileListExample)
-- (void)enableLoginItemWithLoginItemsReference:(LSSharedFileListRef )theLoginItemsRefs forPath:(NSString *)appPath;
-- (void)disableLoginItemWithLoginItemsReference:(LSSharedFileListRef )theLoginItemsRefs forPath:(NSString *)appPath;
-- (BOOL)loginItemExistsWithLoginItemReference:(LSSharedFileListRef)theLoginItemsRefs forPath:(NSString *)appPath ;
 @end
 
 @implementation AppDelegate {
@@ -47,8 +37,6 @@ typedef NS_ENUM(NSInteger, PSState) {
 	BOOL louReedMode;
 	BOOL concertHall;
 	CFAbsoluteTime showUntilDate;
-	
-	CFMachPortRef eventTap;
 }
 
 + (void) initialize {
@@ -59,73 +47,26 @@ typedef NS_ENUM(NSInteger, PSState) {
 															  @"ShowBatteryPercentage":@NO,
 															  @"ShowBatteryIcon":@YES,
 															  @"HiddenWhenDisconnected":@NO,
-															  @"MapMediaKeys":@NO
+															  @"LoginItemConfigured":@NO
 															  }];
 }
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-	PFMoveToApplicationsFolderIfNecessary();
-	LSSharedFileListRef loginItems = LSSharedFileListCreate(NULL, kLSSharedFileListSessionLoginItems, NULL);
-	NSString * appPath = [[NSBundle mainBundle] bundlePath];
-	if (loginItems) {
-		[self enableLoginItemWithLoginItemsReference:loginItems forPath:appPath];
+	// Open at login by default the first time, as older versions did. The user can turn it off from the menu.
+	NSUserDefaults * userDefaults = [NSUserDefaults standardUserDefaults];
+	if(![userDefaults boolForKey:@"LoginItemConfigured"]) {
+		NSError * error = nil;
+		if(![[SMAppService mainAppService] registerAndReturnError:&error])
+			NSLog(@"Failed to register login item: %@", error);
+		[userDefaults setBool:YES forKey:@"LoginItemConfigured"];
 	}
-	if([[NSUserDefaults standardUserDefaults] boolForKey:@"MapMediaKeys"])
-		[self setupMediaKeyMapping];
-}
-
-- (void) setupMediaKeyMapping {
-	[NSTask launchedTaskWithLaunchPath:@"/bin/launchctl" arguments:@[@"unload",@"/System/Library/LaunchAgents/com.apple.rcd.plist"]];
-	self.eventMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:(NSKeyDownMask|NSSystemDefinedMask)  handler:^(NSEvent * event) {
-		int keyCode = (([event data1] & 0xFFFF0000) >> 16);
-		
-		int keyFlags = ([event data1] & 0x0000FFFF);
-		
-		int keyState = (((keyFlags & 0xFF00) >> 8)) == 0xA;
-		
-		if(keyCode == 10 && keyFlags == 6972) {
-			
-			switch ([event data2]) {
-				case 786608: // Play / Pause on OS < 10.10 Yosemite
-				case 786637: // Play / Pause on OS >= 10.10 Yosemite
-					NSLog(@"Play/Pause bluetooth keypress detected...sending corresponding media key event");
-					[MediaKey send:NX_KEYTYPE_PLAY];
-					break;
-				case 786611: // Next
-					NSLog(@"Next bluetooth keypress detected...sending corresponding media key event");
-					[MediaKey send:NX_KEYTYPE_NEXT];
-					break;
-				case 786612: // Previous
-					NSLog(@"Previous bluetooth keypress detected...sending corresponding media key event");
-					[MediaKey send:NX_KEYTYPE_PREVIOUS];
-					break;
-				case 786613: // Fast-forward
-					NSLog(@"Fast-forward bluetooth keypress detected...sending corresponding media key event");
-					[MediaKey send:NX_KEYTYPE_FAST];
-					break;
-				case 786614: // Rewind
-					NSLog(@"Rewind bluetooth keypress detected...sending corresponding media key event");
-					[MediaKey send:NX_KEYTYPE_REWIND];
-					break;
-				default:
-					// TODO make this popup a message in the UI (with a link to submit the issue and a "don't show this message again" checkbox)
-					NSLog(@"Unknown bluetooth key received.  Please visit https://github.com/jguice/mac-bt-headset-fix/issues and submit an issue describing what you expect the key to do (include the following data): keyCode:%i keyFlags:%i keyState:%i %li",keyCode,keyFlags,keyState,(long)[event data2]);
-					break;
-			}
-		}
-	}];
-}
-
-- (void) disableMediaKeyMapping {
-	[NSTask launchedTaskWithLaunchPath:@"/bin/launchctl" arguments:@[@"load",@"/System/Library/LaunchAgents/com.apple.rcd.plist"]];
-	[NSEvent removeMonitor:self.eventMonitor];
 }
 
 - (BOOL)applicationShouldOpenUntitledFile:(NSApplication *)sender {
 	if([[NSUserDefaults standardUserDefaults] boolForKey:@"HiddenWhenDisconnected"] && state != PSAskingStateConnected) {
 		showUntilDate = CFAbsoluteTimeGetCurrent()+30.;
 		[self updateStatusItem];
-		[statusItem popUpStatusItemMenu:statusItem.menu];
+		[statusItem.button performClick:nil];
 		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(31 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 			[self updateStatusItem];
 		});
@@ -135,28 +76,27 @@ typedef NS_ENUM(NSInteger, PSState) {
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
 	[self setupStatusItem];
+	UNUserNotificationCenter * notificationCenter = [UNUserNotificationCenter currentNotificationCenter];
+	notificationCenter.delegate = self;
+	[notificationCenter requestAuthorizationWithOptions:UNAuthorizationOptionAlert|UNAuthorizationOptionSound completionHandler:^(BOOL granted, NSError * error) {
+		if(error)
+			NSLog(@"Notification authorization failed: %@", error);
+	}];
 	[IOBluetoothDevice registerForConnectNotifications:self selector:@selector(connected:fromDevice:)];
 }
 
 - (void) setupStatusItem {
 	statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
 	[self updateStatusItem];
-	statusItem.highlightMode = YES;
-	NSMenu * myMenu = [[NSMenu alloc] initWithTitle:@"Test"];
+	NSMenu * myMenu = [[NSMenu alloc] initWithTitle:@"Parrot Status"];
 	myMenu.delegate = self;
 	statusItem.menu = myMenu;
-	if([statusItem respondsToSelector:@selector(button)])
-		statusItem.button.appearsDisabled = YES;
+	statusItem.button.appearsDisabled = YES;
 }
 
-- (void)applicationWillTerminate:(NSNotification *)notification {
-	LSSharedFileListRef loginItems = LSSharedFileListCreate(NULL, kLSSharedFileListSessionLoginItems, NULL);
-	NSString * appPath = [[NSBundle mainBundle] bundlePath];
-	if (loginItems) {
-		[self disableLoginItemWithLoginItemsReference:loginItems forPath:appPath];
-	}
-	if([[NSUserDefaults standardUserDefaults] boolForKey:@"MapMediaKeys"])
-		[self disableMediaKeyMapping];
+// The app has no windows in front, so show battery notifications even while it is active.
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
+	completionHandler(UNNotificationPresentationOptionBanner|UNNotificationPresentationOptionSound);
 }
 
 - (void) updateStatusItem {
@@ -214,13 +154,8 @@ typedef NS_ENUM(NSInteger, PSState) {
 	else {
 		image = nil;
 	}
-	if([statusItem respondsToSelector:@selector(button)]) {
-		statusItem.button.image = image;
-	}
-	else {
-		statusItem.image = image;
-	}
-	
+	statusItem.button.image = image;
+
 	NSString * title = nil;
 	
 	if([[NSUserDefaults standardUserDefaults] boolForKey:@"ShowBatteryPercentage"]) {
@@ -242,43 +177,12 @@ typedef NS_ENUM(NSInteger, PSState) {
 		statusItem.length = NSSquareStatusItemLength;
 	}
 	
-	if([statusItem respondsToSelector:@selector(button)]) {
-		statusItem.title = title;
-		statusItem.button.appearsDisabled = state != PSAskingStateConnected;
-		statusItem.button.imagePosition = NSImageRight;
-	}
-	else {
-		statusItem.title = title;
-		statusItem.enabled = state == PSAskingStateConnected;
-	}
+	statusItem.button.title = title ?: @"";
+	statusItem.button.appearsDisabled = state != PSAskingStateConnected;
+	statusItem.button.imagePosition = NSImageRight;
 }
 
-CGEventRef modifiersChanged( CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon ) {
-	if(CGEventGetType(event) != kCGEventFlagsChanged) {
-		return NULL;
-	}
-	AppDelegate * myself = (__bridge AppDelegate *)(refcon);
-	[myself menuNeedsUpdate:myself->statusItem.menu event:[NSEvent eventWithCGEvent:event]];
-	[myself->statusItem.menu update];
-	return NULL;
-}
-
-- (void) menuWillOpen:(NSMenu *)menu {
-	eventTap = CGEventTapCreate(kCGHIDEventTap,kCGHeadInsertEventTap,kCGEventTapOptionListenOnly,CGEventMaskBit(kCGEventFlagsChanged),&modifiersChanged,(__bridge void *)(self));
-	CFRunLoopSourceRef	eventSrc = CFMachPortCreateRunLoopSource(NULL, eventTap, 0);
-	if (eventSrc) {
-		CFRunLoopAddSource([[NSRunLoop currentRunLoop] getCFRunLoop], eventSrc, kCFRunLoopCommonModes);
-		CFRelease(eventSrc);
-		CGEventTapEnable(eventTap, true);
-	}
-}
-
-- (void) menuDidClose:(NSMenu *)menu{
-	CGEventTapEnable(eventTap, false);
-	eventTap = NULL;
-}
-
-- (void)menuNeedsUpdate:(NSMenu*)menu event:(NSEvent*)event {
+- (void)menuNeedsUpdate:(NSMenu*)menu {
 	[menu removeAllItems];
 	if( state == PSAskingStateConnected) {
 		[menu addItemWithTitle:[NSString stringWithFormat:NSLocalizedString(@"Connected to %@", @""),name] action:NULL keyEquivalent:@""];
@@ -296,16 +200,15 @@ CGEventRef modifiersChanged( CGEventTapProxy proxy, CGEventType type, CGEventRef
 		BOOL showBatteryPercentage = [[NSUserDefaults standardUserDefaults] boolForKey:@"ShowBatteryPercentage"];
 		BOOL showBatteryIcon = [[NSUserDefaults standardUserDefaults] boolForKey:@"ShowBatteryIcon"];
 		
-		[[batteryMenu addItemWithTitle:NSLocalizedString(@"Show Battery Icon Only", @"") action:@selector(showBatteryIconOnly:) keyEquivalent:@""] setState:(showBatteryIcon&&!showBatteryPercentage)?NSOnState:NSOffState];
-		[[batteryMenu addItemWithTitle:NSLocalizedString(@"Show Battery Icon And Percentage", @"") action:@selector(showBatteryIconAndText:) keyEquivalent:@""] setState:(showBatteryIcon&&showBatteryPercentage)?NSOnState:NSOffState];
-		[[batteryMenu addItemWithTitle:NSLocalizedString(@"Show Battery Percentage Only", @"") action:@selector(showBatteryTextOnly:) keyEquivalent:@""] setState:(!showBatteryIcon&&showBatteryPercentage)?NSOnState:NSOffState];
+		[[batteryMenu addItemWithTitle:NSLocalizedString(@"Show Battery Icon Only", @"") action:@selector(showBatteryIconOnly:) keyEquivalent:@""] setState:(showBatteryIcon&&!showBatteryPercentage)?NSControlStateValueOn:NSControlStateValueOff];
+		[[batteryMenu addItemWithTitle:NSLocalizedString(@"Show Battery Icon And Percentage", @"") action:@selector(showBatteryIconAndText:) keyEquivalent:@""] setState:(showBatteryIcon&&showBatteryPercentage)?NSControlStateValueOn:NSControlStateValueOff];
+		[[batteryMenu addItemWithTitle:NSLocalizedString(@"Show Battery Percentage Only", @"") action:@selector(showBatteryTextOnly:) keyEquivalent:@""] setState:(!showBatteryIcon&&showBatteryPercentage)?NSControlStateValueOn:NSControlStateValueOff];
 		
 		[menu addItem:[NSMenuItem separatorItem]];
-		[[menu addItemWithTitle:NSLocalizedString(@"Noise cancellation", @"") action:@selector(toggleNoiseCancellation:) keyEquivalent:@""] setState:noiseCancel?NSOnState:NSOffState];
-		[[menu addItemWithTitle:NSLocalizedString(@"Auto connection", @"") action:@selector(toggleAutoConnect:) keyEquivalent:@""] setState:autoConnection?NSOnState:NSOffState];
-		[[menu addItemWithTitle:NSLocalizedString(@"Lou Reed mode", @"") action:@selector(toggleLouReed:) keyEquivalent:@""] setState:louReedMode?NSOnState:NSOffState];
-		[[menu addItemWithTitle:NSLocalizedString(@"Concert hall mode", @"") action:@selector(toggleConcertHall:) keyEquivalent:@""] setState:concertHall?NSOnState:NSOffState];
-		[[menu addItemWithTitle:NSLocalizedString(@"Touch control support for all Apps", @"") action:@selector(toggleMediaKeys:) keyEquivalent:@""] setState:[[NSUserDefaults standardUserDefaults] boolForKey:@"MapMediaKeys"]?NSOnState:NSOffState];
+		[[menu addItemWithTitle:NSLocalizedString(@"Noise cancellation", @"") action:@selector(toggleNoiseCancellation:) keyEquivalent:@""] setState:noiseCancel?NSControlStateValueOn:NSControlStateValueOff];
+		[[menu addItemWithTitle:NSLocalizedString(@"Auto connection", @"") action:@selector(toggleAutoConnect:) keyEquivalent:@""] setState:autoConnection?NSControlStateValueOn:NSControlStateValueOff];
+		[[menu addItemWithTitle:NSLocalizedString(@"Lou Reed mode", @"") action:@selector(toggleLouReed:) keyEquivalent:@""] setState:louReedMode?NSControlStateValueOn:NSControlStateValueOff];
+		[[menu addItemWithTitle:NSLocalizedString(@"Concert hall mode", @"") action:@selector(toggleConcertHall:) keyEquivalent:@""] setState:concertHall?NSControlStateValueOn:NSControlStateValueOff];
 	}
 	else {
 		NSMenuItem * notConnected = [menu addItemWithTitle:NSLocalizedString(@"Not connected",@"") action:NULL keyEquivalent:@""];
@@ -317,29 +220,18 @@ CGEventRef modifiersChanged( CGEventTapProxy proxy, CGEventType type, CGEventRef
 			[notConnected.submenu addItemWithTitle:NSLocalizedString(@"Hide when disconnected", @"") action:@selector(hideWhenDisconnected:) keyEquivalent:@""];
 		}
 	}
-	if([event modifierFlags] & NSAlternateKeyMask) {
-		[menu addItemWithTitle:NSLocalizedString(@"Battery notifications…", @"") action:@selector(showAdvancedBatteryOptions:) keyEquivalent:@""];
-	}
-	else {
-		[[menu addItemWithTitle:NSLocalizedString(@"Battery notifications", @"") action:@selector(toogleBatteryNotifications:) keyEquivalent:@""] setState:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowBatteryNotifications"]?NSOnState:NSOffState];
-	}
-	
+	[[menu addItemWithTitle:NSLocalizedString(@"Battery notifications", @"") action:@selector(toogleBatteryNotifications:) keyEquivalent:@""] setState:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowBatteryNotifications"]?NSControlStateValueOn:NSControlStateValueOff];
+	// Shown instead of the item above while the Option key is held down
+	NSMenuItem * advancedBatteryItem = [menu addItemWithTitle:NSLocalizedString(@"Battery notifications…", @"") action:@selector(showAdvancedBatteryOptions:) keyEquivalent:@""];
+	advancedBatteryItem.keyEquivalentModifierMask = NSEventModifierFlagOption;
+	advancedBatteryItem.alternate = YES;
+
 	[menu addItem:[NSMenuItem separatorItem]];
-	if([event modifierFlags] & NSAlternateKeyMask) {
-		NSMenuItem * checkForUpdates = [menu addItemWithTitle:NSLocalizedString(@"Check For Updates…", @"") action:@selector(about:) keyEquivalent:@""];
-		[checkForUpdates setTarget:self.updater];
-		[checkForUpdates setAction:@selector(checkForUpdates:)];
-	}
-	else {
-		[menu addItemWithTitle:NSLocalizedString(@"About", @"") action:@selector(about:) keyEquivalent:@""];
-	}
-	
+	[[menu addItemWithTitle:NSLocalizedString(@"Open at login", @"") action:@selector(toggleOpenAtLogin:) keyEquivalent:@""] setState:[SMAppService mainAppService].status == SMAppServiceStatusEnabled?NSControlStateValueOn:NSControlStateValueOff];
+	[menu addItemWithTitle:NSLocalizedString(@"About", @"") action:@selector(about:) keyEquivalent:@""];
+
 	[menu addItem:[NSMenuItem separatorItem]];
 	[menu addItemWithTitle:NSLocalizedString(@"Quit", @"") action:@selector(terminate:) keyEquivalent:@""];
-}
-
-- (void)menuNeedsUpdate:(NSMenu*)menu {
-	[self menuNeedsUpdate:menu event:[NSApp currentEvent]];
 }
 
 #pragma mark -
@@ -378,12 +270,18 @@ static NSArray * uuidServicesZik2 = nil;
 				NSLog(@"Connected to %@", device.nameOrAddress);
 				IOBluetoothRFCOMMChannel * rfCommChannel;
 				res = [device openRFCOMMChannelSync:&rfCommChannel withChannelID:channelId delegate:self];
+				if(res != kIOReturnSuccess) {
+					NSLog(@"Failed to open channel to %@ (0x%x)", device.nameOrAddress, res);
+					return;
+				}
 				mRfCommChannel = rfCommChannel;
-				NSAssert(res == kIOReturnSuccess, @"Failed to open channel");
 				unsigned char buffer[] = {0x00,0x03,0x00};
 				state = PSAskingStateInit;
 				res = [rfCommChannel writeSync:buffer length:3];
-				NSAssert(res == kIOReturnSuccess, @"Failed to send init");
+				if(res != kIOReturnSuccess) {
+					NSLog(@"Failed to send init to %@ (0x%x)", device.nameOrAddress, res);
+					return;
+				}
 				[device registerForDisconnectNotification:self selector:@selector(disconnected:fromDevice:)];
 			}
 		}
@@ -414,7 +312,8 @@ static NSArray * uuidServicesZik2 = nil;
 	[requestData appendData:[requestString dataUsingEncoding:NSASCIIStringEncoding]];
 //	IOReturn res = [mRfCommChannel writeSync:(void *)[requestData bytes] length:[requestData length]];
 	IOReturn res = [mRfCommChannel writeAsync:(void *)[requestData bytes] length:[requestData length] refcon:NULL];
-	NSAssert(res == kIOReturnSuccess, @"Failed to send %@",request);
+	if(res != kIOReturnSuccess)
+		NSLog(@"Failed to send %@ (0x%x)", request, res);
 }
 
 - (void) handleAnswer:(NSXMLDocument*) xmlDocument {
@@ -437,7 +336,7 @@ static NSArray * uuidServicesZik2 = nil;
 		batteryCharging = [[[[[xmlDocument nodesForXPath:@"//battery" error:NULL] lastObject] attributeForName:@"state"] stringValue] isEqualToString:@"charging"];
 		
 		if([[NSUserDefaults standardUserDefaults] boolForKey:@"ShowBatteryNotifications"] && batteryCharging == NO) {
-			NSUserNotification * userNotification = nil;
+			UNMutableNotificationContent * userNotification = nil;
 			NSArray * notificationLevels = [[NSUserDefaults standardUserDefaults] arrayForKey:@"BatteryNotificationLevels"];
 			NSMutableArray * sortedNotificationLevels = [NSMutableArray array];
 			for (NSString * currentLevel in notificationLevels) {
@@ -448,14 +347,14 @@ static NSArray * uuidServicesZik2 = nil;
 			}];
 			for (NSString * currentLevel in sortedNotificationLevels) {
 				if(batteryLevel > [currentLevel intValue] && newBatteryLevel <= [currentLevel intValue] ) {
-					userNotification = [[NSUserNotification alloc] init];
+					userNotification = [[UNMutableNotificationContent alloc] init];
 					userNotification.title = NSLocalizedString(@"Parrot Zik Battery Notification", @"");
 					userNotification.subtitle = [NSString stringWithFormat:NSLocalizedString(@"%i%% of battery remaining", @""),[currentLevel intValue]];
 					break;
 				}
 			}
 			if(!userNotification && [[NSUserDefaults standardUserDefaults] boolForKey:@"ShowBatteryAboutToDieNotifications"] && batteryLevel>=2 && newBatteryLevel<2) {
-				userNotification = [[NSUserNotification alloc] init];
+				userNotification = [[UNMutableNotificationContent alloc] init];
 				userNotification.title = NSLocalizedString(@"Parrot Zik Battery Low", @"");
 				userNotification.subtitle = NSLocalizedString(@"Recharge the battery soon", @"");
 			}
@@ -465,7 +364,12 @@ static NSArray * uuidServicesZik2 = nil;
 			}
 			
 			if( userNotification ) {
-				[[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:userNotification];
+				userNotification.sound = [UNNotificationSound defaultSound];
+				UNNotificationRequest * request = [UNNotificationRequest requestWithIdentifier:[[NSUUID UUID] UUIDString] content:userNotification trigger:nil];
+				[[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request withCompletionHandler:^(NSError * error) {
+					if(error)
+						NSLog(@"Failed to deliver notification: %@", error);
+				}];
 			}
 		}
 		
@@ -521,8 +425,8 @@ static NSArray * uuidServicesZik2 = nil;
 			if( state == PSAskingStateInit) {
 				state = PSAskingStateConnected;
 				unsigned char buffer[] = {0x00,0x03,0x02};
-				BOOL success = [data isEqualToData:[NSData dataWithBytes:buffer length:3]];
-				NSAssert(success, @"Recieved unknown init data");
+				if(![data isEqualToData:[NSData dataWithBytes:buffer length:3]])
+					NSLog(@"Received unknown init data: %@", data);
 				[self sendRequest:@"GET /api/software/version/get"];
 				[self sendRequest:@"GET /api/bluetooth/friendlyname/get"];
 				[self sendRequest:@"GET /api/system/battery/get"];
@@ -588,14 +492,14 @@ static NSArray * uuidServicesZik2 = nil;
 	[userDefaults setBool:![userDefaults boolForKey:@"ShowBatteryNotifications"] forKey:@"ShowBatteryNotifications"];
 }
 
-- (void) toggleMediaKeys:(id)sender {
-	NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
-	[userDefaults setBool:![userDefaults boolForKey:@"MapMediaKeys"] forKey:@"MapMediaKeys"];
-	if([userDefaults boolForKey:@"MapMediaKeys"]) {
-		[self setupMediaKeyMapping];
-	}
-	else {
-		[self disableMediaKeyMapping];
+- (IBAction)toggleOpenAtLogin:(id)sender {
+	SMAppService * service = [SMAppService mainAppService];
+	NSError * error = nil;
+	BOOL success = service.status == SMAppServiceStatusEnabled ? [service unregisterAndReturnError:&error] : [service registerAndReturnError:&error];
+	if(!success) {
+		NSLog(@"Failed to change login item: %@", error);
+		if(service.status == SMAppServiceStatusRequiresApproval)
+			[SMAppService openSystemSettingsLoginItems];
 	}
 }
 
@@ -669,92 +573,6 @@ static NSArray * uuidServicesZik2 = nil;
 - (IBAction)showWhenDisconnected:(id)sender {
 	[[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"HiddenWhenDisconnected"];
 	[self updateStatusItem];
-}
-
-@end
-
-
-@implementation AppDelegate(SharedFileListExample)
-// See https://github.com/justin/Shared-File-List-Example/blob/master/Controller.m
-
-/*
- 
- The MIT License
- 
- Copyright (c) 2010 Justin Williams, Second Gear
- 
- Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated documentation files (the "Software"), to deal
- in the Software without restriction, including without limitation the rights
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
- 
- The above copyright notice and this permission notice shall be included in
- all copies or substantial portions of the Software.
- 
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- THE SOFTWARE.
- 
- */
-
-
-- (void)enableLoginItemWithLoginItemsReference:(LSSharedFileListRef )theLoginItemsRefs forPath:(NSString *)appPath {
-	// We call LSSharedFileListInsertItemURL to insert the item at the bottom of Login Items list.
-	CFURLRef url = (__bridge CFURLRef)[NSURL fileURLWithPath:appPath];
-	LSSharedFileListItemRef item = LSSharedFileListInsertItemURL(theLoginItemsRefs, kLSSharedFileListItemLast, NULL, NULL, url, NULL, NULL);
-	if (item)
-		CFRelease(item);
-		}
-
-- (void)disableLoginItemWithLoginItemsReference:(LSSharedFileListRef )theLoginItemsRefs forPath:(NSString *)appPath {
-	UInt32 seedValue;
-	CFURLRef thePath = NULL;
-	// We're going to grab the contents of the shared file list (LSSharedFileListItemRef objects)
-	// and pop it in an array so we can iterate through it to find our item.
-	CFArrayRef loginItemsArray = LSSharedFileListCopySnapshot(theLoginItemsRefs, &seedValue);
-	for (id item in (__bridge NSArray *)loginItemsArray) {
-		LSSharedFileListItemRef itemRef = (__bridge LSSharedFileListItemRef)item;
-		if (LSSharedFileListItemResolve(itemRef, 0, (CFURLRef*) &thePath, NULL) == noErr) {
-			if ([[(__bridge NSURL *)thePath path] hasPrefix:appPath]) {
-				LSSharedFileListItemRemove(theLoginItemsRefs, itemRef); // Deleting the item
-			}
-			// Docs for LSSharedFileListItemResolve say we're responsible
-			// for releasing the CFURLRef that is returned
-			if (thePath != NULL) CFRelease(thePath);
-		}
-	}
-	if (loginItemsArray != NULL) CFRelease(loginItemsArray);
-		}
-
-- (BOOL)loginItemExistsWithLoginItemReference:(LSSharedFileListRef)theLoginItemsRefs forPath:(NSString *)appPath {
-	BOOL found = NO;
-	UInt32 seedValue;
-	CFURLRef thePath = NULL;
-	
-	// We're going to grab the contents of the shared file list (LSSharedFileListItemRef objects)
-	// and pop it in an array so we can iterate through it to find our item.
-	CFArrayRef loginItemsArray = LSSharedFileListCopySnapshot(theLoginItemsRefs, &seedValue);
-	for (id item in (__bridge NSArray *)loginItemsArray) {
-		LSSharedFileListItemRef itemRef = (__bridge LSSharedFileListItemRef)item;
-		if (LSSharedFileListItemResolve(itemRef, 0, (CFURLRef*) &thePath, NULL) == noErr) {
-			if ([[(__bridge NSURL *)thePath path] hasPrefix:appPath]) {
-				found = YES;
-				break;
-			}
-			// Docs for LSSharedFileListItemResolve say we're responsible
-			// for releasing the CFURLRef that is returned
-			if (thePath != NULL) CFRelease(thePath);
-		}
-	}
-	if (loginItemsArray != NULL) CFRelease(loginItemsArray);
-		
-		return found;
 }
 
 @end
