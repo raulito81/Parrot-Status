@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0] - 2026-10-28
+
+### Added
+- **Noise cancellation on calls:** turns noise cancellation on or off only during phone calls.
+- **Concert hall settings:** room (Silent room, Living room, Jazz club, Concert hall) and virtual speaker angle (30° to 180°).
+- **Equalizer:** turn it on or off and choose one of its 7 presets (Vocal, Pop, Club, Punchy, Deep, Crystal and the Custom curve saved from the official app). The menu shows the active preset.
+- **Pause when removed:** turns the headset's presence sensor on or off.
+- **Auto power off:** never, or after 5, 10, 15, 30 or 60 minutes.
+- New options only appear when the connected headset answers them, so models without them do not show them.
+- Diagnostics mode for the headset API: launch with `--args -ProbeAPI YES` and the answers are saved in `~/Library/Logs/Parrot Status/probe.log`.
+
+### Fixed
+- The name and battery level were sometimes missing after connecting, when two answers arrived in the same Bluetooth packet.
+
 ## [1.0.0] - 2026-10-28
 
 ### Changed
